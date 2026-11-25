@@ -8,14 +8,20 @@ Conda 环境、`SDK/xapi-3.4.9-cp310-cp310-linux_x86_64.whl` 安装、相机权�
 
 ## 宿主机相机和 GUI
 
-先由操作员交接设备，确认 XiaoTop 已释放相机。每台相机用一个厂商 launch，在各终端加载 `source /opt/ros/humble/setup.bash`。下例适用于 Gemini 330 系列 USB 相机，将序列号替换为实际值。第二台使用自己的序列号和 `camera_name:=camera_02`。其他型号使用对应的厂商 launch，网口相机使用厂商 launch 中的 `net_device_ip` 和 `net_device_port`。
+通过 USB 连接 Gemini 335L，确认 XiaoTop 已释放相机。加载 ROS 2 环境后查询序列号。
 
 ```bash
-ros2 launch orbbec_camera gemini_330_series.launch.py camera_name:=camera_01 \
-  serial_number:=YOUR_CAMERA_SERIAL enable_depth:=false enable_left_ir:=false enable_right_ir:=false
+source /opt/ros/humble/setup.bash
+ros2 run orbbec_camera list_devices_node
 ```
 
-确认每台相机的 `color/image_raw/compressed` 和 `color/camera_info` 有发布者，能收到数据，图像与内参分辨率一致。
+找到对应相机输出中的 `serial:`，用后面的值替换 `YOUR_CAMERA_SERIAL`。项目脚本会以 `/camera_01` 启动相机。
+
+```bash
+SERIAL_NUMBER=CP253530003C bash scripts/start_camera.sh
+```
+
+确认 `/camera_01/color/image_raw/compressed` 和 `/camera_01/color/camera_info` 有发布者，且图像与内参分辨率一致。
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -30,7 +36,7 @@ python scripts/x5_handeye_calibration.py --handeye-mode eye_to_hand
 
 1. 选择机械臂、相机和模式。固定外部相机用 `eye_to_hand`，棋盘格固定于末端。腕部相机用 `eye_in_hand`，棋盘格固定于工作区。默认棋盘格为 9×6 内角点、24 mm 方格，可通过 `--pattern-cols`、`--pattern-rows`、`--square-size-mm` 指定。
 2. 确认工作区无人、急停可用、控制器已关闭伺服，且其他客户端已释放该臂。点击连接并确认 TF0 回读，准备手动控制后再单独确认使能。
-3. 用数字 1–7 或 XYZABC 选轴，方向键低速点动。等待机械臂停止和图像稳定，确认棋盘完整可见及 PnP 有效后按 W 采样。D 删除最后一条样本，E 求解。Esc 请求 SDK 中止，现场紧急停止使用实体急停。建议采集 15–30 个分布充分的姿态。
+3. 用数字 1–7 或 XYZABC 选轴，方向键“上”、“下”低速点动。等待机械臂停止和图像稳定，确认棋盘完整可见及 PnP 有效后按 W 采样。D 删除最后一条样本，E 求解。Esc 请求 SDK 中止，现场紧急停止使用实体急停。建议采集 10-15 个分布充分的姿态。
 4. 关闭伺服并断开后，可选择另一臂。每组数据写入 `handeye_samples/<left|right>/<会话>/<相机>/`。JSON 和 NPZ 的平移单位为毫米，输出分别为相机到 Base 或相机到 TF0（结果标识 `camera_to_tcp`）。用未参与求解的姿态及独立目标做现场精度验证。
 
 ## 离线重算

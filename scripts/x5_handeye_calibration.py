@@ -75,8 +75,9 @@ CART_KEYS = {
     QtCore.Qt.Key_B: 4,
     QtCore.Qt.Key_C: 5,
 }
-COLOR_COMPRESSED_SUFFIX = "/color/image_raw/compressed"
-COLOR_INFO_SUFFIX = "/color/camera_info"
+CAMERA_NAMESPACE = "/camera_01"
+COLOR_COMPRESSED_TOPIC = f"{CAMERA_NAMESPACE}/color/image_raw/compressed"
+COLOR_INFO_TOPIC = f"{CAMERA_NAMESPACE}/color/camera_info"
 COMPRESSED_IMAGE_TYPE = "sensor_msgs/msg/CompressedImage"
 CAMERA_INFO_TYPE = "sensor_msgs/msg/CameraInfo"
 
@@ -95,16 +96,13 @@ class CameraSource:
 
 
 def discover_compressed_color_cameras(topic_types: dict[str, list[str]]) -> list[CameraSource]:
-    """返回同时具有 JPEG 彩色流和匹配彩色内参话题的相机。"""
-    sources: list[CameraSource] = []
-    for color_topic, types in topic_types.items():
-        if not color_topic.endswith(COLOR_COMPRESSED_SUFFIX) or COMPRESSED_IMAGE_TYPE not in types:
-            continue
-        namespace = color_topic[: -len(COLOR_COMPRESSED_SUFFIX)]
-        info_topic = namespace + COLOR_INFO_SUFFIX
-        if CAMERA_INFO_TYPE in topic_types.get(info_topic, []):
-            sources.append(CameraSource(namespace, color_topic, info_topic))
-    return sorted(sources, key=lambda source: source.label)
+    """当 /camera_01 的压缩彩色图像和内参话题均可发现时返回该相机。"""
+    if (
+        COMPRESSED_IMAGE_TYPE in topic_types.get(COLOR_COMPRESSED_TOPIC, [])
+        and CAMERA_INFO_TYPE in topic_types.get(COLOR_INFO_TOPIC, [])
+    ):
+        return [CameraSource(CAMERA_NAMESPACE, COLOR_COMPRESSED_TOPIC, COLOR_INFO_TOPIC)]
+    return []
 
 
 def compressed_color_to_bgr(msg: CompressedImage) -> np.ndarray:
@@ -704,7 +702,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if selected is not None and selected not in self._camera_sources:
             self._set_camera_source(None, reason="所选相机已离线")
         if not sources:
-            self._log("未找到压缩彩色相机；正在等待 color/image_raw/compressed 和 color/camera_info")
+            self._log(f"正在等待 {COLOR_COMPRESSED_TOPIC} 和 {COLOR_INFO_TOPIC}")
 
     def _select_camera_from_combo(self, index: int) -> None:
         if self.record_busy or self.compute_busy or self.connection_busy or self.motion_busy:
