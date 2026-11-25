@@ -1,0 +1,7 @@
+arms:
+  left:
+    controller_ip: ''
+    source_ip: ''
+  right:
+    controller_ip: ''
+    source_ip: ''

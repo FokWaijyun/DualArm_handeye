@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+.pytest_cache/
+handeye_samples/
+config/x5.local.yaml
+
+/test
+/SDK

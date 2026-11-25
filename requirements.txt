@@ -1,0 +1,2 @@
+# ROS/OpenCV/Qt/PyYAML are installed by Ubuntu apt for Python 3.10.
+# Install the X5 SDK wheel from SDK/ separately.
