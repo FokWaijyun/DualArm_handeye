@@ -27,7 +27,7 @@ SERIAL_NUMBER=CP253530003C bash scripts/start_camera.sh
 source /opt/ros/humble/setup.bash
 source /home/huo/miniconda3/etc/profile.d/conda.sh
 conda activate handeye
-python scripts/x5_handeye_calibration.py --handeye-mode eye_to_hand
+python scripts/x5_handeye_calibration.py
 ```
 
 需要预填地址时，将 `config/x5.example.yaml` 复制到 `config/x5.local.yaml` 并填写现场确认的地址，再传入 `--x5-config config/x5.local.yaml`。也可以在界面填入本次使用的地址。源 IP 用于诊断系统选路，留空时使用系统路由。界面独立于相机驱动。

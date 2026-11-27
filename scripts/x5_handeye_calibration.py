@@ -275,7 +275,8 @@ class RosCameraNode(Node):
         with self.lock:
             self.bundle.camera_matrix = camera_matrix
             self.bundle.dist_coeffs = dist_coeffs
-            self.bundle.status = f"正在接收 {source.label} 的相机内参"
+            if self.bundle.image_bgr is None:
+                self.bundle.status = f"已收到 {source.label} 的相机内参，等待压缩图像帧"
 
     def _source_is_selected(self, source: CameraSource) -> bool:
         return self._is_source_selected is None or bool(self._is_source_selected(source))
@@ -411,6 +412,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.servo_enabled = False
         self._last_e1_tcp_pose: RobotPose | None = None
         self._last_camera_status_logged = ""
+        self._last_vision_error = ""
         self._camera_sources: dict[str, CameraSource] = {}
         self._current_camera_source: CameraSource | None = None
         self._camera_generation = 0
@@ -654,22 +656,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.camera_label.setText(
             f"相机：{camera_namespace or '--'}，{frame.shape[1]}x{frame.shape[0]}，帧龄 {age:.2f}s"
         )
-        detection = detect_chessboard(
-            frame,
-            pattern_size=(self.args.pattern_cols, self.args.pattern_rows),
-            square_size_mm=self.args.square_size_mm,
-            camera_matrix=camera_matrix,
-            dist_coeffs=dist_coeffs,
-        )
+        pattern_size = (self.args.pattern_cols, self.args.pattern_rows)
+        try:
+            detection = detect_chessboard(
+                frame, pattern_size, self.args.square_size_mm, camera_matrix, dist_coeffs
+            )
+            overlay = draw_detection(detection, pattern_size, self.args.square_size_mm)
+            image_rgb = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
+        except cv2.error as exc:
+            self.latest_detection = None
+            self.image_panel.set_image(frame[:, :, ::-1])
+            self.board_label.setText("棋盘格：处理失败，当前帧不可采样（详见日志）")
+            error = str(exc).strip()
+            if error != self._last_vision_error:
+                self._last_vision_error = error
+                self._log(f"棋盘格处理失败：{error}")
+            return
+        self._last_vision_error = ""
         detection.camera_namespace = camera_namespace
         detection.camera_generation = camera_generation
         self.latest_detection = detection
-        overlay = draw_detection(
-            detection,
-            pattern_size=(self.args.pattern_cols, self.args.pattern_rows),
-            square_size_mm=self.args.square_size_mm,
-        )
-        self.image_panel.set_image(cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB))
+        self.image_panel.set_image(image_rgb)
         if detection.found:
             if detection.rvec is not None:
                 err = detection.reprojection_error
@@ -1674,7 +1681,9 @@ def reprojection_error(
     dist_coeffs: np.ndarray,
 ) -> float:
     projected, _ = cv2.projectPoints(object_points, rvec, tvec, camera_matrix, dist_coeffs)
-    return float(cv2.norm(image_points, projected, cv2.NORM_L2) / len(projected))
+    observed = image_points.reshape(-1, 2)
+    projected = projected.reshape(-1, 2)
+    return float(cv2.norm(observed, projected, cv2.NORM_L2) / len(projected))
 
 
 def robot_pose_to_rt(pose: RobotPose) -> tuple[np.ndarray, np.ndarray]:
